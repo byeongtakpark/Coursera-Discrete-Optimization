@@ -1,18 +1,20 @@
 # Send More Money
+#
 # Task : Assign differents digits to letters to satisfy the addition 
 # 
 #        S  E  N  D 
 # +      M  O  R  E
 # ------------------
 #    M   O  N  E  Y 
-#
 
 class Solver:
     def __init__(self):
+        'Defines the problem variables (letters in "SENDMORY") and assigns them a possible domain (digits 0-9).'
         self.variables = {i: None for i in "SENDMORY"} 
         self.domain = list(range(0, 10)) # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
 
     def is_valid(self):
+        'Checks if the current digit assignments satisfy the equation SEND + MORE = MONEY.'
         if self.variables['S'] == 0 or self.variables['M'] == 0:
             return False
         
@@ -22,6 +24,7 @@ class Solver:
         return send + more == money
 
     def backtracking(self, index=0):
+        'Recursively assigns digits to letters while ensuring uniqueness.'
         if index == len(self.variables): # All letters assigned
             return self.is_valid()
            
@@ -40,6 +43,7 @@ class Solver:
         return False
 
     def solve(self):
+        'Initiates the backtracking process.'
         if self.backtracking():
             return self.variables
         return None
@@ -52,5 +56,4 @@ if solution:
 
 else:
     print("No solution found.")
-
 
