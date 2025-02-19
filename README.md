@@ -6,7 +6,7 @@ This repository contains solutions to [Discrete Optimization](https://www.course
 | Assignment  | Score |
 | ------------- | ------------- |
 | Knapsack  | 60 / 60  |
-| Graph Coloring  |   |
+| Graph Coloring  | 50 / 60 |
 | Set Covering | |
 | Travelling Salesman | |
 | Facility Location | |
