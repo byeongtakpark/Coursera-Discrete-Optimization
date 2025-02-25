@@ -1,133 +1,138 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 import math
 import random
 import time
-
-from collections import namedtuple, deque
-from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+import sys
+from collections import deque
+from clustering import generate_initial_solution  
 
 class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
-def length(point1, point2):
-    return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
-
-def total_distance(tour, points):
-    distance = 0
-    for i in range(len(tour)):
-        distance += length(points[tour[i]], points[tour[(i + 1) % len(tour)]])
-    return distance
-
-def two_opt_swap(route, i, k):
-    return route[:i] + list(reversed(route[i:k+1])) + route[k+1:]
-
-def tabu_search(points, node_count, iterations=1000, tabu_size=100, time_limit=1800):
-    start_time = time.time()
-    current_solution = list(range(node_count))
-    random.shuffle(current_solution)
-    best_solution = list(current_solution)
-    best_distance = total_distance(best_solution, points)
-    
-    tabu_list = deque(maxlen=tabu_size)
-    
-    for _ in range(iterations):
-        if time.time() - start_time > time_limit:
-            break 
-            
-        neighborhood = []
-        for i in range(1, node_count - 1):
-            for k in range(i + 1, node_count):
-                if (i, k) not in tabu_list:
-                    new_solution = two_opt_swap(current_solution, i, k)
-                    new_distance = total_distance(new_solution, points)
-                    neighborhood.append((new_solution, new_distance, (i, k)))
-        
-        neighborhood.sort(key=lambda x: x[1])
-        best_neighbor, best_neighbor_distance, move = neighborhood[0]
-        
-        if best_neighbor_distance < best_distance:
-            best_solution = best_neighbor
-            best_distance = best_neighbor_distance
-        
-        current_solution = best_neighbor
-        tabu_list.append(move)
-    
-    return best_solution, best_distance
-
-def ortools_tsp(points, node_count):
-    manager = pywrapcp.RoutingIndexManager(node_count, 1, 0)
-    routing = pywrapcp.RoutingModel(manager)
-
-    def distance_callback(from_index, to_index):
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        return int(length(points[from_node], points[to_node]) * 1000)
-
-    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
-
-    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
-    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    search_parameters.time_limit.FromSeconds(120)  # Set time limit to 120 seconds
-    
-    solution = routing.SolveWithParameters(search_parameters)
-
-    if solution:
-        index = routing.Start(0)
-        route = []
-        route_distance = 0
-        while not routing.IsEnd(index):
-            route.append(manager.IndexToNode(index))
-            previous_index = index
-            index = solution.Value(routing.NextVar(index))
-            route_distance += routing.GetArcCostForVehicle(previous_index, index, 0)
-        route.append(manager.IndexToNode(index))
-        return route, route_distance / 1000  # Convert back to original scale
-    else:
-        return [], float('inf')
-
-
-def solve_it(input_data):
+def parse_input_data(input_data):
     lines = input_data.strip().split('\n')
     node_count = int(lines[0])
     points = []
     for i in range(1, node_count + 1):
-        line = lines[i]
-        parts = line.split()
-        points.append(Point(float(parts[0]), float(parts[1])))
+        x, y = map(float, lines[i].split())
+        points.append(Point(x, y))
+    return points, node_count
 
-    # Optimization Problem
-    # # visit the nodes in the order they appear in the file
-    # solution = range(0, nodeCount)
+def length(point1, point2):
+    return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2)
 
-    # # calculate the length of the tour
-    # obj = length(points[solution[-1]], points[solution[0]])
-    # for index in range(0, nodeCount-1):
-    #     obj += length(points[solution[index]], points[solution[index+1]])
+def total_distance(route, points):
+    return sum(length(points[route[i]], points[route[(i + 1) % len(route)]]) for i in range(len(route)))
 
-    # Tabu Search
-    best_solution, best_distance = tabu_search(points, node_count)
+def two_opt_swap(route, i, k):
+    return route[:i] + list(reversed(route[i:k+1])) + route[k+1:]
 
-    # OR-Tools
-    # best_solution, best_distance = ortools_tsp(points, node_count)
+def greedy_nearest_neighbor(points):
+    node_count = len(points)
+    unvisited = set(range(node_count))
+    
+    current = 0  
+    solution = [current]  # Initialize solution with starting node
+    unvisited.remove(current)
 
-    output_data = f'{best_distance:.2f} 0\n'
-    output_data += ' '.join(map(str, best_solution))
-    return output_data
+    while unvisited:
+        # Select the nearest unvisited node
+        nearest = min(unvisited, key=lambda node: length(points[current], points[node]))
+        solution.append(nearest)
+        unvisited.remove(nearest)
+        current = nearest  # Move to the next node
 
-import sys
+    return solution, total_distance(solution, points)  # Return route and its total distance
 
+def tabu_search(points, node_count, initial_solution, iterations=1000, tabu_size=100, time_limit=1800):
+    """
+    Parameters:
+    - points: List of Point objects
+    - node_count: Total number of nodes
+    - initial_solution: Precomputed initial solution (random, clustering-based, or heuristic)
+    - iterations: Maximum number of iterations for Tabu Search
+    - tabu_size: Size of the tabu list to prevent cycling
+    - time_limit: Maximum runtime in seconds
+
+    Returns:
+    - best_solution: Optimized TSP path
+    - best_distance: Distance of best TSP path
+    """
+
+    current_solution = initial_solution.copy()  # Initialize with given starting solution
+    tabu_list = deque(maxlen=tabu_size)  # Tabu list to store recently visited swaps
+    start_time = time.time()  
+
+    best_solution = list(current_solution)  # Store the best solution found
+    best_distance = total_distance(best_solution, points)  # Compute initial distance
+
+    for _ in range(iterations):
+        if time.time() - start_time > time_limit:  
+            break
+
+        neighborhood = []  # List to store neighboring solutions
+        for i in range(1, node_count - 1):
+            for k in range(i + 1, node_count):
+                if (i, k) not in tabu_list:  # Ensure move is not in tabu list
+                    new_solution = two_opt_swap(current_solution, i, k)  
+                    new_distance = total_distance(new_solution, points) 
+                    neighborhood.append((new_solution, new_distance, (i, k)))
+
+        if not neighborhood:  # If no valid neighbors found, continue to next iteration
+            continue
+
+        neighborhood.sort(key=lambda x: x[1])  # Sort solutions by distance (ascending order)
+        best_neighbor, best_neighbor_distance, move = neighborhood[0]  # Choose the best neighbor
+
+        if best_neighbor_distance < best_distance:  # Update best solution if improvement is found
+            best_solution = best_neighbor
+            best_distance = best_neighbor_distance
+
+        current_solution = best_neighbor  # Move to best neighbor solution
+        tabu_list.append(move)  # Add move to tabu list to prevent cycling
+
+    return best_solution, best_distance
+
+def solve_it(input_data):
+    """
+    Determines the best method for initializing the TSP solution based on problem size
+    and runs Tabu Search or Greedy Local Search accordingly.
+
+    Parameters:
+    - input_data: String containing the TSP problem instance.
+
+    Returns:
+    - output_data: Formatted result with total distance and solution path.
+    """
+    points, node_count = parse_input_data(input_data)  # Parse input data
+
+    # Choose initial solution strategy based on problem size
+    if node_count <= 500:
+        print("Using Random Initialization (No Clustering)")
+        initial_solution = list(range(node_count))  # Generate a random solution
+        random.shuffle(initial_solution)
+
+    elif node_count <= 10_000:
+        print("Using Clustering-Based Initialization")
+        initial_solution = generate_initial_solution(points, num_clusters=10)  # Cluster-based initial solution
+
+    else:
+        print("Using Greedy Local Search Initialization (Large Problem)")
+        best_solution, best_distance = greedy_nearest_neighbor(points)  # Use greedy heuristic for large problems
+        return f'{best_distance:.2f} 0\n' + ' '.join(map(str, best_solution))
+
+    # Run 2-OPT Tabu Search for problems with ≤ 10,000 nodes
+    best_solution, best_distance = tabu_search(points, node_count, initial_solution)
+
+    return f'{best_distance:.2f} 0\n' + ' '.join(map(str, best_solution))
+
+# Main script execution: Reads input file and solves TSP
 if __name__ == '__main__':
-    import sys
     if len(sys.argv) > 1:
         file_location = sys.argv[1].strip()
         with open(file_location, 'r') as input_data_file:
             input_data = input_data_file.read()
-        print(solve_it(input_data))
+        print(solve_it(input_data))  # Solve and print the result
     else:
-        print('This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/tsp_51_1)')
-
+        print('This test requires an input file. Please select one from the data directory. (i.e. python solver.py ./data/tsp_51_1)')
