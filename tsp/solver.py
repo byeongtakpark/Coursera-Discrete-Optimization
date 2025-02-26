@@ -2,11 +2,16 @@ import math
 import random
 import time
 import sys
+<<<<<<< HEAD
 import gurobipy as gp
 
 from collections import deque
 # from clustering import generate_initial_solution  
 from gurobipy import GRB
+=======
+from collections import deque
+from clustering import generate_initial_solution  
+>>>>>>> 5066d70a295b3a2aa60ca1313e08333c1a27863e
 
 class Point:
     def __init__(self, x, y):
@@ -36,9 +41,13 @@ def greedy_nearest_neighbor(points):
     unvisited = set(range(node_count))
     
     current = 0  
+<<<<<<< HEAD
     # Initialize solution with starting node
 
     solution = [current]  
+=======
+    solution = [current]  # Initialize solution with starting node
+>>>>>>> 5066d70a295b3a2aa60ca1313e08333c1a27863e
     unvisited.remove(current)
 
     while unvisited:
@@ -48,7 +57,11 @@ def greedy_nearest_neighbor(points):
         unvisited.remove(nearest)
         current = nearest  # Move to the next node
 
+<<<<<<< HEAD
     return solution, total_distance(solution, points)  
+=======
+    return solution, total_distance(solution, points)  # Return route and its total distance
+>>>>>>> 5066d70a295b3a2aa60ca1313e08333c1a27863e
 
 def tabu_search(points, node_count, initial_solution, iterations=1000, tabu_size=100, time_limit=1800):
     """
@@ -99,6 +112,7 @@ def tabu_search(points, node_count, initial_solution, iterations=1000, tabu_size
 
     return best_solution, best_distance
 
+<<<<<<< HEAD
 def gurobi_solver(points, node_count, time_limit=600):
     # Create a distance matrix
     distance = {}
@@ -217,6 +231,8 @@ def gurobi_solver(points, node_count, time_limit=600):
         return [], float('inf')  # Return an empty tour if no solution is found
 
 
+=======
+>>>>>>> 5066d70a295b3a2aa60ca1313e08333c1a27863e
 def solve_it(input_data):
     """
     Determines the best method for initializing the TSP solution based on problem size
@@ -230,6 +246,7 @@ def solve_it(input_data):
     """
     points, node_count = parse_input_data(input_data)  # Parse input data
 
+<<<<<<< HEAD
     # # Choose initial solution strategy based on problem size
     # if node_count <= 500:
     #     print("Using Random Initialization (No Clustering)")
@@ -288,6 +305,28 @@ def solve_it(input_data):
         best_solution, best_distance = greedy_nearest_neighbor(points)  
         return f'{best_distance:.2f} 0\n' + ' '.join(map(str, best_solution))
 
+=======
+    # Choose initial solution strategy based on problem size
+    if node_count <= 500:
+        print("Using Random Initialization (No Clustering)")
+        initial_solution = list(range(node_count))  # Generate a random solution
+        random.shuffle(initial_solution)
+
+    elif node_count <= 10_000:
+        print("Using Clustering-Based Initialization")
+        initial_solution = generate_initial_solution(points, num_clusters=10)  # Cluster-based initial solution
+
+    else:
+        print("Using Greedy Local Search Initialization (Large Problem)")
+        best_solution, best_distance = greedy_nearest_neighbor(points)  # Use greedy heuristic for large problems
+        return f'{best_distance:.2f} 0\n' + ' '.join(map(str, best_solution))
+
+    # Run 2-OPT Tabu Search for problems with ≤ 10,000 nodes
+    best_solution, best_distance = tabu_search(points, node_count, initial_solution)
+
+    return f'{best_distance:.2f} 0\n' + ' '.join(map(str, best_solution))
+
+>>>>>>> 5066d70a295b3a2aa60ca1313e08333c1a27863e
 # Main script execution: Reads input file and solves TSP
 if __name__ == '__main__':
     if len(sys.argv) > 1:
